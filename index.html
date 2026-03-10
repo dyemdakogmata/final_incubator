@@ -99,6 +99,8 @@
   .s-t { color: var(--text); }
   .s-e { color: var(--muted); font-size: 11px; }
 
+
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -230,7 +232,9 @@
 </div>
 
 <script>
-const IP = "http://192.168.1.54"; // ← your ESP32 IP
+const IP = "https://punch-environment-arrives-pushing.trycloudflare.com";
+
+function getIP() { return IP; }
 
 // Local state — always synced from server
 let fan     = false;
@@ -276,22 +280,20 @@ function applyTurnerPanels(isManual) {
 
 // ── POLL ─────────────────────────────────────────────
 function poll() {
+  const IP = getIP();
   fetch(`${IP}/sensor`)
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(d => {
       clearErr();
 
-      // Sensor readings
       $("temp").innerHTML = d.temperature.toFixed(1) + '<span class="unit">°C</span>';
       $("hum").innerHTML  = d.humidity.toFixed(1)    + '<span class="unit">%</span>';
 
-      // Fan
       fan = d.fan === 1;
       setPill("fanPill", fan);
       $("fanTxt").textContent = fan ? "ON" : "OFF";
       setBtn("fanBtn", fan);
 
-      // Heater — sync state and panels from server
       heater       = d.heater === 1;
       heaterManual = d.heaterManual === 1;
       applyHeaterPanels(heaterManual);
@@ -306,7 +308,6 @@ function poll() {
       }
       if (heaterManual) setBtn("heaterBtn", d.heaterManualOn === 1);
 
-      // Turner — sync state and panels from server
       turner       = d.turner === 1;
       turnerManual = d.turnerManual === 1;
       applyTurnerPanels(turnerManual);
@@ -315,7 +316,6 @@ function poll() {
       if (!turnInit) {
         $("turnsPerDay").value = d.turnsPerDay;
         $("turnDur").value     = d.turnDurationHours;
-        // Restore firstTurn from server
         const ftH = String(Math.floor(d.firstTurnMinutes / 60)).padStart(2,"0");
         const ftM = String(d.firstTurnMinutes % 60).padStart(2,"0");
         $("firstTurn").value = `${ftH}:${ftM}`;
@@ -339,27 +339,28 @@ function poll() {
 
 // ── FAN ──────────────────────────────────────────────
 function toggleFan() {
-  // fan state is a simple toggle: send opposite of current state
+  const IP = getIP();
   req(`${IP}/fan?state=${fan ? 0 : 1}`).then(poll);
 }
 
 // ── HEATER ───────────────────────────────────────────
 function setHeaterMode() {
+  const IP = getIP();
   const isManual = $("heaterMode").value === "manual";
   applyHeaterPanels(isManual);
-  // Tell ESP32 to switch mode
   req(`${IP}/heater?mode=${isManual ? "manual" : "auto"}`)
     .then(() => new Promise(r => setTimeout(r, 300)))
     .then(poll);
 }
 
 function toggleHeater() {
-  // Read current manual ON state from button label to avoid stale JS variable
+  const IP = getIP();
   const currentlyOn = $("heaterBtn").textContent.trim() === "Turn OFF";
   req(`${IP}/heater?state=${currentlyOn ? 0 : 1}`).then(poll);
 }
 
 function saveHeaterThresholds() {
+  const IP = getIP();
   const min = parseFloat($("minTemp").value);
   const max = parseFloat($("maxTemp").value);
   if (isNaN(min) || isNaN(max)) { alert("Enter valid numbers."); return; }
@@ -369,6 +370,7 @@ function saveHeaterThresholds() {
 
 // ── TURNER ───────────────────────────────────────────
 function setTurnerMode() {
+  const IP = getIP();
   const isManual = $("turnerMode").value === "manual";
   applyTurnerPanels(isManual);
   req(`${IP}/turner?mode=${isManual ? "manual" : "auto"}`)
@@ -377,11 +379,13 @@ function setTurnerMode() {
 }
 
 function toggleTurner() {
+  const IP = getIP();
   const currentlyOn = $("turnerBtn").textContent.trim() === "Turn OFF";
   req(`${IP}/turner?state=${currentlyOn ? 0 : 1}`).then(poll);
 }
 
 function saveTurnerSchedule() {
+  const IP = getIP();
   const turns = parseInt($("turnsPerDay").value);
   const dur   = parseFloat($("turnDur").value);
   const [fH, fM] = ($("firstTurn").value || "06:00").split(":").map(Number);
